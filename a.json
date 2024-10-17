@@ -1,0 +1,77 @@
+{
+  "event_date": "2024-10-15T00:00:00",
+  "event_location": "jkjkj",
+  "event_name": "Wedding",
+  "event_time": "05:32:00",
+  "guest_count": 50,
+  "id": "00a8c2f5-15c9-48df-8409-18f52e8a82b9",
+  "services": [
+    "Buffet Service",
+    "Plated Dinner",
+    "Cocktail Reception",
+    "Food Truck Service",
+    "Beverage Service",
+    "Tent Setup",
+    "Stage Setup",
+    "Lighting & Sound"
+  ],
+  "special_instructions": "jkjkjkj",
+  "user_id": "fcab9501-f6a1-4226-a794-0a9579a51d97"
+},
+{
+  "event_date": "2024-10-21T00:00:00",
+  "event_location": "kimathi",
+  "event_name": null,
+  "event_time": "06:18:00",
+  "guest_count": 50,
+  "id": "6a17948b-d1da-41f4-b5f1-e1010ac6bea1",
+  "services": [
+    "Plated Dinner",
+    "Cocktail Reception",
+    "Beverage Service",
+    "Stage Setup",
+    "Decorations",
+    "DJ/Live Band",
+    "Photo Booth",
+    "Fireworks Display"
+  ],
+  "special_instructions": "kimarhi",
+  "user_id": "fcab9501-f6a1-4226-a794-0a9579a51d97"
+},
+{
+  "event_date": "2024-10-22T00:00:00",
+  "event_location": "jkijij",
+  "event_name": "Kimarhi",
+  "event_time": "18:09:00",
+  "guest_count": 50,
+  "id": "76e4c124-3db4-4616-b77b-f2d458e255e4",
+  "services": [
+    "Buffet Service",
+    "Plated Dinner",
+    "Food Truck Service",
+    "Tent Setup",
+    "Photo Booth"
+  ],
+  "special_instructions": "ijiji",
+  "user_id": "fcab9501-f6a1-4226-a794-0a9579a51d97"
+},
+{
+  "event_date": "2024-10-21T00:00:00",
+  "event_location": "kimathi",
+  "event_name": null,
+  "event_time": "06:18:00",
+  "guest_count": 50,
+  "id": "e0b363ec-2fb2-4fed-8aff-39eb4d11747f",
+  "services": [
+    "Plated Dinner",
+    "Cocktail Reception",
+    "Beverage Service",
+    "Stage Setup",
+    "Decorations",
+    "DJ/Live Band",
+    "Photo Booth",
+    "Fireworks Display"
+  ],
+  "special_instructions": "kimarhi",
+  "user_id": "fcab9501-f6a1-4226-a794-0a9579a51d97"
+}
