@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -43,66 +42,32 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
   String _eventLocation = '';
   int _guestCount = 50;
   String _specialInstructions = '';
-  double _loadingProgress = 0.0;
-  bool _isLoading = false;
+  double _totalCost = 0.0;
 
-  final String baseUrl =
-      'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
-  String? token;
+  // Services with pricing (in dollars per guest)
+  final List<Map<String, dynamic>> _services = [
+    {'name': 'Buffet Service', 'pricePerGuest': 20.0, 'selected': false},
+    {'name': 'Plated Dinner', 'pricePerGuest': 25.0, 'selected': false},
+    {'name': 'Cocktail Reception', 'pricePerGuest': 15.0, 'selected': false},
+    {'name': 'Beverage Service', 'pricePerGuest': 10.0, 'selected': false},
+  ];
 
-  final Map<String, bool> _foodAndBeverages = {
-    'Buffet Service': false,
-    'Plated Dinner': false,
-    'Cocktail Reception': false,
-    'Food Truck Service': false,
-    'Beverage Service': false,
-  };
+  // Event Setup options (fixed price)
+  final List<Map<String, dynamic>> _eventSetup = [
+    {'name': 'Tent Setup', 'price': 500.0, 'selected': false},
+    {'name': 'Stage Setup', 'price': 300.0, 'selected': false},
+    {'name': 'Lighting & Sound', 'price': 400.0, 'selected': false},
+    {'name': 'Tables & Chairs', 'price': 250.0, 'selected': false},
+    {'name': 'Decorations', 'price': 350.0, 'selected': false},
+  ];
 
-  final Map<String, bool> _eventSetup = {
-    'Tent Setup': false,
-    'Stage Setup': false,
-    'Lighting & Sound': false,
-    'Tables & Chairs': false,
-    'Decorations': false,
-  };
-
-  final Map<String, bool> _entertainment = {
-    'DJ/Live Band': false,
-    'Photo Booth': false,
-    'Master of Ceremony': false,
-    'Fireworks Display': false,
-  };
-
-  @override
-  void initState() {
-    super.initState();
-    Hive.initFlutter();
-    _loadToken();
-  }
-
-  Future<void> _loadToken() async {
-    var box = await Hive.openBox('authBox');
-    token = box.get('token');
-    if (token == null) {
-      _showDialog("Authentication Error", "User not authenticated.");
-    }
-  }
-
-  void _showDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Okay'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
-      ),
-    );
-  }
+  // Entertainment options (fixed price)
+  final List<Map<String, dynamic>> _entertainment = [
+    {'name': 'DJ/Live Band', 'price': 600.0, 'selected': false},
+    {'name': 'Photo Booth', 'price': 200.0, 'selected': false},
+    {'name': 'Master of Ceremony', 'price': 300.0, 'selected': false},
+    {'name': 'Fireworks Display', 'price': 800.0, 'selected': false},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -118,34 +83,30 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
               ),
         title: const Text('Book Catering & Event Services',
             style: TextStyle(color: Colors.white)),
-        bottom: _isLoading
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(4.0),
-                child: LinearProgressIndicator(
-                  value: _loadingProgress,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                ),
-              )
-            : null,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildEventNameField(),
-              _buildServicesContainer('Food & Beverages', _foodAndBeverages),
-              _buildServicesContainer('Event Setup', _eventSetup),
-              _buildServicesContainer('Entertainment', _entertainment),
-              _buildEventDetails(),
-              _buildSpecialInstructionsField(),
-              _buildSubmitButton(),
-            ],
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildEventNameField(),
+                  _buildEventDetails(),
+                  _buildSpecialInstructionsField(),
+                  _buildServicesSelection(),
+                  _buildEventSetupSelection(),
+                  _buildEntertainmentSelection(),
+                  _buildPriceBreakdown(),
+                  _buildSubmitButton(),
+                ],
+              ),
+            ),
           ),
-        ),
+          _buildFloatingTotalCost(),
+        ],
       ),
     );
   }
@@ -154,30 +115,13 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
     return _buildContainer(
       title: 'Event Name',
       child: TextFormField(
+        style: const TextStyle(color: Colors.black),
         decoration: const InputDecoration(
           labelText: 'Name of the Event',
+          labelStyle: TextStyle(color: Colors.black),
           border: OutlineInputBorder(),
         ),
         onChanged: (value) => _eventName = value,
-      ),
-    );
-  }
-
-  Widget _buildServicesContainer(String title, Map<String, bool> services) {
-    return _buildContainer(
-      title: title,
-      child: Column(
-        children: services.keys.map((service) {
-          return CheckboxListTile(
-            title: Text(service),
-            value: services[service],
-            onChanged: (bool? value) {
-              setState(() {
-                services[service] = value ?? false;
-              });
-            },
-          );
-        }).toList(),
       ),
     );
   }
@@ -188,15 +132,20 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
       child: Column(
         children: [
           TextFormField(
+            style: const TextStyle(color: Colors.black),
             decoration: const InputDecoration(
               labelText: 'Event Location',
+              labelStyle: TextStyle(color: Colors.black),
               border: OutlineInputBorder(),
             ),
             onChanged: (value) => _eventLocation = value,
           ),
           const SizedBox(height: 10),
           _buildNumberPicker('Guest Count:', _guestCount, (newValue) {
-            setState(() => _guestCount = newValue);
+            setState(() {
+              _guestCount = newValue;
+              _calculateTotalCost();
+            });
           }),
           _buildDateTimePickers(),
         ],
@@ -208,12 +157,111 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
     return _buildContainer(
       title: 'Special Instructions',
       child: TextFormField(
+        style: const TextStyle(color: Colors.black),
         decoration: const InputDecoration(
           border: OutlineInputBorder(),
           hintText: 'Enter any special instructions for the event...',
         ),
         maxLines: 4,
         onChanged: (value) => _specialInstructions = value,
+      ),
+    );
+  }
+
+  Widget _buildServicesSelection() {
+    return _buildContainer(
+      title: 'Select Catering Services (Price per Guest)',
+      child: Column(
+        children: _services.map((service) {
+          return CheckboxListTile(
+            title: Text(
+              '${service['name']} (\$${service['pricePerGuest']} per guest)',
+              style: const TextStyle(color: Colors.black),
+            ),
+            value: service['selected'],
+            onChanged: (bool? value) {
+              setState(() {
+                service['selected'] = value ?? false;
+                _calculateTotalCost();
+              });
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildEventSetupSelection() {
+    return _buildContainer(
+      title: 'Select Event Setup Options (Fixed Price)',
+      child: Column(
+        children: _eventSetup.map((setup) {
+          return CheckboxListTile(
+            title: Text(
+              '${setup['name']} (\$${setup['price']})',
+              style: const TextStyle(color: Colors.black),
+            ),
+            value: setup['selected'],
+            onChanged: (bool? value) {
+              setState(() {
+                setup['selected'] = value ?? false;
+                _calculateTotalCost();
+              });
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildEntertainmentSelection() {
+    return _buildContainer(
+      title: 'Select Entertainment Options (Fixed Price)',
+      child: Column(
+        children: _entertainment.map((entertainment) {
+          return CheckboxListTile(
+            title: Text(
+              '${entertainment['name']} (\$${entertainment['price']})',
+              style: const TextStyle(color: Colors.black),
+            ),
+            value: entertainment['selected'],
+            onChanged: (bool? value) {
+              setState(() {
+                entertainment['selected'] = value ?? false;
+                _calculateTotalCost();
+              });
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPriceBreakdown() {
+    return _buildContainer(
+      title: 'Price Breakdown',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ..._services
+              .where((service) => service['selected'])
+              .map((service) => Text(
+                    '${service['name']} (\$${service['pricePerGuest']} per guest) x $_guestCount guests = \$${service['pricePerGuest'] * _guestCount}',
+                    style: const TextStyle(color: Colors.black),
+                  )),
+          ..._eventSetup
+              .where((setup) => setup['selected'])
+              .map((setup) => Text(
+                    '${setup['name']} = \$${setup['price']}',
+                    style: const TextStyle(color: Colors.black),
+                  )),
+          ..._entertainment
+              .where((entertainment) => entertainment['selected'])
+              .map((entertainment) => Text(
+                    '${entertainment['name']} = \$${entertainment['price']}',
+                    style: const TextStyle(color: Colors.black),
+                  )),
+        ],
       ),
     );
   }
@@ -228,6 +276,25 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
         onPressed: _submitBooking,
         icon: const Icon(Icons.calendar_today_outlined),
         label: const Text('Submit Booking'),
+      ),
+    );
+  }
+
+  Widget _buildFloatingTotalCost() {
+    return Positioned(
+      bottom: 20,
+      right: 20,
+      child: Material(
+        color: Colors.white,
+        elevation: 6.0,
+        borderRadius: BorderRadius.circular(16.0),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Total Cost: \$$_totalCost',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
       ),
     );
   }
@@ -253,7 +320,8 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
           ),
           const SizedBox(height: 10),
           child,
@@ -266,12 +334,15 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
       String label, int value, ValueChanged<int> onChanged) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 16))),
+        Expanded(
+            child: Text(label,
+                style: const TextStyle(fontSize: 16, color: Colors.black))),
         IconButton(
           icon: const Icon(Icons.remove_circle_outline),
           onPressed: () => onChanged(value > 0 ? value - 1 : 0),
         ),
-        Text('$value', style: const TextStyle(fontSize: 16)),
+        Text('$value',
+            style: const TextStyle(fontSize: 16, color: Colors.black)),
         IconButton(
           icon: const Icon(Icons.add_circle_outline),
           onPressed: () => onChanged(value + 1),
@@ -279,7 +350,20 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
       ],
     );
   }
-
+void _pickDate(BuildContext context) async {
+    final DateTime? selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2025),
+    );
+    if (selectedDate != null && selectedDate != _selectedDate) {
+      setState(() {
+        _selectedDate = selectedDate;
+      });
+    }
+  }
+  
   Widget _buildDateTimePickers() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -306,53 +390,47 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
       ],
     );
   }
-
-  Future<void> _pickDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() => _selectedDate = picked);
-    }
-  }
-
   Future<void> _pickTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
+    final TimeOfDay? selectedTime = await showTimePicker(
       context: context,
       initialTime: _selectedTime ?? TimeOfDay.now(),
     );
-    if (picked != null && picked != _selectedTime) {
-      setState(() => _selectedTime = picked);
+    if (selectedTime != null && selectedTime != _selectedTime) {
+      setState(() {
+        _selectedTime = selectedTime;
+      });
     }
   }
 
-  void _submitBooking() async {
+  void _calculateTotalCost() {
+    _totalCost = _services.fold(0.0, (total, service) {
+      return total + ((service['selected'] ?? false) ? (service['pricePerGuest'] * _guestCount) : 0.0);
+    }) +
+    _eventSetup.fold(0.0, (total, setup) {
+      return total + ((setup['selected'] ?? false) ? setup['price'] : 0.0);
+    }) +
+    _entertainment.fold(0.0, (total, entertainment) {
+      return total + ((entertainment['selected'] ?? false) ? entertainment['price'] : 0.0);
+    });
+  }
+
+  void _submitBooking() {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
-      _isLoading = true;
-      _loadingProgress = 0.0; // Indeterminate state during network request
     });
-
-    List<String> selectedServices = [];
-    _foodAndBeverages.forEach((key, value) {
-      if (value) selectedServices.add(key);
-    });
-    _eventSetup.forEach((key, value) {
-      if (value) selectedServices.add(key);
-    });
-    _entertainment.forEach((key, value) {
-      if (value) selectedServices.add(key);
-    });
-
-    final url = Uri.parse('$baseUrl/bookings');
+    List<Map<String, dynamic>> selectedServices = _services
+        .where((service) => service['selected'] == true)
+        .map((service) => {
+              'name': service['name'],
+              'price': service['pricePerGuest'],
+              'quantity': _guestCount,
+            })
+        .toList();
+    final url = Uri.parse('/bookings');
     final headers = {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer ',
     };
-
     final body = json.encode({
       'services': selectedServices,
       'event_name': _eventName,
@@ -363,27 +441,39 @@ class _BookingSystemPageState extends State<BookingSystemPage> {
       'time': _selectedTime != null
           ? '${_selectedTime!.hour}:${_selectedTime!.minute}'
           : null,
+      'total_cost': _totalCost,
     });
-
     try {
-      final response = await http.post(url, headers: headers, body: body);
-      if (response.statusCode == 201) {
-        var box = await Hive.openBox('bookingsBox');
-        box.add(
-            json.decode(response.body)); // Save booking data for offline access
+      final response = http.post(url, headers: headers, body: body);
+      if (response== 201) {
         _showDialog('Booking Confirmation',
             'Your booking has been submitted successfully!');
       } else {
-        _showDialog(
-            "Booking Error", "Failed to create booking. Please try again.");
+        _showDialog('Booking Error', 'Failed to create booking. Please try again.');
       }
     } catch (e) {
-      _showDialog("Network Error", "An error occurred: $e");
+      _showDialog('Network Error', 'An error occurred: $e');
     } finally {
       setState(() {
-        _isLoading = false;
-        _loadingProgress = 0.0; // Reset progress
       });
     }
   }
+  void _showDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(content),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 }
