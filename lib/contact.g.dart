@@ -45,3 +45,4 @@ class ContactAdapter extends TypeAdapter<Contact> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+

@@ -6,7 +6,6 @@ import 'clientOrder.dart';
 import 'package:cater/event.dart';
 import 'notification.dart';
 import 'communication.dart';
-import 'mycontacts.dart';
 
 // MainScreen with BottomNavigationBar
 class MainScreen extends StatefulWidget {
@@ -25,7 +24,6 @@ class _MainScreenState extends State<MainScreen> {
     const ClientBookingApp(fromBottomNavBar: true),
     const EventSchedulingPage(),
     const NotificationsApp(),
-    const MessagesPage(),
   ];
 
   void onTabTapped(int index) {

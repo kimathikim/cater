@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -414,50 +415,59 @@ void _pickDate(BuildContext context) async {
     });
   }
 
-  void _submitBooking() {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() {
-    });
-    List<Map<String, dynamic>> selectedServices = _services
-        .where((service) => service['selected'] == true)
-        .map((service) => {
-              'name': service['name'],
-              'price': service['pricePerGuest'],
-              'quantity': _guestCount,
-            })
-        .toList();
-    final url = Uri.parse('/bookings');
-    final headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ',
-    };
-    final body = json.encode({
-      'services': selectedServices,
-      'event_name': _eventName,
-      'event_location': _eventLocation,
-      'guest_count': _guestCount,
-      'special_instructions': _specialInstructions,
-      'date': _selectedDate?.toIso8601String(),
-      'time': _selectedTime != null
-          ? '${_selectedTime!.hour}:${_selectedTime!.minute}'
-          : null,
-      'total_cost': _totalCost,
-    });
-    try {
-      final response = http.post(url, headers: headers, body: body);
-      if (response== 201) {
-        _showDialog('Booking Confirmation',
-            'Your booking has been submitted successfully!');
-      } else {
-        _showDialog('Booking Error', 'Failed to create booking. Please try again.');
-      }
-    } catch (e) {
-      _showDialog('Network Error', 'An error occurred: $e');
-    } finally {
-      setState(() {
-      });
-    }
+void _submitBooking() async {
+  if (!_formKey.currentState!.validate()) return;
+  setState(() {});
+
+  // Retrieve the token from Hive
+  var box = await Hive.openBox('authBox');
+  String? token = box.get('token');
+
+  if (token == null) {
+    _showDialog('Authentication Error', 'No token found. Please log in again.');
+    return;
   }
+
+  List<Map<String, dynamic>> selectedServices = _services
+      .where((service) => service['selected'] == true)
+      .map((service) => {
+            'name': service['name'],
+            'price': service['pricePerGuest'],
+            'quantity': _guestCount,
+          })
+      .toList();
+
+  final url = Uri.parse('https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1/bookings');
+  final headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
+  final body = json.encode({
+    'services': selectedServices,
+    'event_name': _eventName,
+    'event_location': _eventLocation,
+    'guest_count': _guestCount,
+    'special_instructions': _specialInstructions,
+    'date': _selectedDate?.toIso8601String(),
+    'time': _selectedTime != null
+        ? '${_selectedTime!.hour}:${_selectedTime!.minute}'
+        : null,
+    'total_cost': _totalCost,
+  });
+
+  try {
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode == 201) {
+      _showDialog('Booking Confirmation', 'Your booking has been submitted successfully!');
+    } else {
+      _showDialog('Booking Error', 'Failed to create booking. Please try again.');
+    }
+  } catch (e) {
+    _showDialog('Network Error', 'An error occurred: $e');
+  } finally {
+    setState(() {});
+  }
+}
   void _showDialog(String title, String content) {
     showDialog(
       context: context,

@@ -6,7 +6,6 @@ import 'clientOrder.dart';
 import 'package:cater/event.dart';
 import 'notification.dart';
 import 'communication.dart';
-import 'mycontacts.dart';
 import 'managerDash.dart';
 import 'managernotification.dart';
 import 'vendor.dart';
@@ -29,7 +28,6 @@ class _ManagerMainScreenState extends State<ManagerMainScreen> {
     const NotificationsPageApp(),
     const EventSchedulingPage(),
     const NotificationsApp(),
-    const MessagesPage(),
     const VendorManagementApp(),
     const AdminPanelApp(),
   ];

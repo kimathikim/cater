@@ -1,32 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-
-void main() {
-  runApp(const FeedbackApp());
-}
-
-class FeedbackApp extends StatelessWidget {
-  const FeedbackApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: ThemeData.light().copyWith(
-        primaryColor: const Color(0xFF00BFA5), // Neutral Teal color
-        scaffoldBackgroundColor:
-            const Color(0xFFF9F9F9), // Light gray background
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: Colors.black87),
-          bodySmall: TextStyle(color: Colors.black54),
-        ),
-      ),
-      home: const FeedbackPage(),
-    );
-  }
-}
+import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class FeedbackPage extends StatefulWidget {
-  const FeedbackPage({super.key});
+  final int bookingId;
+
+  const FeedbackPage({super.key, required this.bookingId});
 
   @override
   _FeedbackPageState createState() => _FeedbackPageState();
@@ -35,57 +16,183 @@ class FeedbackPage extends StatefulWidget {
 class _FeedbackPageState extends State<FeedbackPage> {
   double _rating = 5.0;
   String _feedbackText = '';
-  final List<Map<String, dynamic>> _pastFeedback = [
-    {
-      'rating': 5.0,
-      'feedback': 'Great service, 5 stars.',
-      'response':
-          'Thank you for your feedback! We are glad you enjoyed our service.',
-    },
-  ];
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _pastFeedback = [];
+
+  final String baseUrl = 'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
+  String? token;
+
+  @override
+  void initState() {
+    super.initState();
+    Hive.initFlutter();
+    _fetchPastFeedback();
+  }
+
+  Future<void> _fetchPastFeedback() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      var box = await Hive.openBox('authBox');
+      token = box.get('token');
+
+      if (token == null) {
+        _showErrorDialog('User not authenticated. Please log in again.');
+        return;
+      }
+
+      Map<String, String> headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/bookings/${widget.bookingId}/feedback'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final feedbackData = json.decode(response.body);
+
+        setState(() {
+          _pastFeedback = List<Map<String, dynamic>>.from(feedbackData['feedbacks']);
+        });
+      } else {
+        _showErrorDialog('Failed to fetch past feedback.');
+      }
+    } catch (e) {
+      _showErrorDialog('Error fetching feedback: $e');
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  void _submitFeedback() async {
+    if (_feedbackText.isEmpty) {
+      _showErrorDialog('Please enter your feedback before submitting.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      var box = await Hive.openBox('authBox');
+      token = box.get('token');
+
+      if (token == null) {
+        _showErrorDialog('User not authenticated. Please log in again.');
+        return;
+      }
+
+      Map<String, String> headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+      Map<String, dynamic> body = {
+        'rating': _rating,
+        'feedback': _feedbackText,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/bookings/${widget.bookingId}/feedback'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 201) {
+        setState(() {
+          _pastFeedback.insert(0, {
+            'rating': _rating,
+            'feedback': _feedbackText,
+            'response': null,
+          });
+          _feedbackText = '';
+          _rating = 5.0;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Feedback submitted successfully!'),
+          duration: Duration(seconds: 2),
+        ));
+      } else {
+        _showErrorDialog('Failed to submit feedback.');
+      }
+    } catch (e) {
+      _showErrorDialog('Error submitting feedback: $e');
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: const Text('Okay'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Feedback'),
         backgroundColor: const Color(0xFF00BFA5),
-        elevation: 0,
-        leading: const Icon(Icons.arrow_back, color: Colors.white),
-
-        title: const Text('Feedback', style: TextStyle(color: Colors.white)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildContainer(
-              title: 'Submit Feedback',
-              child: _buildFeedbackForm(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Provide feedback for booking ID: ${widget.bookingId}'),
+                  const SizedBox(height: 20),
+                  _buildContainer(
+                    title: 'Submit Feedback',
+                    child: _buildFeedbackForm(),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildContainer(
+                    title: 'Past Feedback',
+                    child: _buildPastFeedbackList(),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            _buildContainer(
-              title: 'Past Feedback',
-              child: _buildPastFeedbackList(),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _buildContainer({required String title, required Widget child}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 2,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10.0,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -94,7 +201,10 @@ class _FeedbackPageState extends State<FeedbackPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 10),
           child,
@@ -107,18 +217,12 @@ class _FeedbackPageState extends State<FeedbackPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Rate Our Service',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 10),
         RatingBar.builder(
           initialRating: _rating,
           minRating: 1,
           direction: Axis.horizontal,
           allowHalfRating: true,
           itemCount: 5,
-          itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
           itemBuilder: (context, _) => const Icon(
             Icons.star,
             color: Colors.amber,
@@ -129,102 +233,71 @@ class _FeedbackPageState extends State<FeedbackPage> {
             });
           },
         ),
-        const SizedBox(height: 20),
-        const Text(
-          'Your Feedback',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
         const SizedBox(height: 10),
-        TextFormField(
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Enter your feedback here...',
-          ),
+        TextField(
           maxLines: 4,
-          onChanged: (value) {
-            _feedbackText = value;
+          decoration: const InputDecoration(
+            hintText: 'Enter your feedback here...',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (text) {
+            setState(() {
+              _feedbackText = text;
+            });
           },
         ),
-        const SizedBox(height: 20),
-        Center(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00BFA5),
-              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
-            ),
-            onPressed: _submitFeedback,
-            icon: const Icon(Icons.feedback_outlined),
-            label: const Text('Submit Feedback'),
+        const SizedBox(height: 10),
+        ElevatedButton(
+          onPressed: _submitFeedback,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00BFA5),
           ),
+          child: const Text('Submit Feedback'),
         ),
       ],
     );
   }
 
   Widget _buildPastFeedbackList() {
-    return Column(
-      children: _pastFeedback.map((feedback) {
-        return Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+    if (_pastFeedback.isEmpty) {
+      return const Text('No past feedback available.');
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _pastFeedback.length,
+      itemBuilder: (context, index) {
+        final feedback = _pastFeedback[index];
+        return ListTile(
+          title: Row(
+            children: [
+              Text('Rating: ${feedback['rating']}'),
+              const SizedBox(width: 10),
+              RatingBarIndicator(
+                rating: feedback['rating'],
+                itemBuilder: (context, _) => const Icon(
+                  Icons.star,
+                  color: Colors.amber,
+                ),
+                itemCount: 5,
+                itemSize: 20.0,
+              ),
+            ],
           ),
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text('Rating: ${feedback['rating']}'),
-                    const SizedBox(width: 10),
-                    RatingBarIndicator(
-                      rating: feedback['rating'],
-                      itemBuilder: (context, index) => const Icon(
-                        Icons.star,
-                        color: Colors.amber,
-                      ),
-                      itemCount: 5,
-                      itemSize: 20.0,
-                      direction: Axis.horizontal,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Feedback: ${feedback['feedback']}',
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 10),
-                if (feedback['response'] != null)
-                  Text(
-                    'Response: ${feedback['response']}',
-                    style: const TextStyle(color: Colors.green),
-                  ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Feedback: ${feedback['feedback']}'),
+              if (feedback['response'] != null) ...[
+                const SizedBox(height: 5),
+                Text('Response: ${feedback['response']}', style: const TextStyle(color: Colors.green)),
               ],
-            ),
+            ],
           ),
         );
-      }).toList(),
+      },
     );
   }
-
-  void _submitFeedback() {
-    if (_feedbackText.isNotEmpty) {
-      setState(() {
-        _pastFeedback.add({
-          'rating': _rating,
-          'feedback': _feedbackText,
-          'response': null,
-        });
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Feedback submitted successfully!'),
-        duration: Duration(seconds: 2),
-      ));
-
-      _feedbackText = '';
-    }
-  }
 }
+

@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:hive_flutter/hive_flutter.dart';
+import 'managerBooking.dart';
+import 'communication.dart';
 
 class CateringDashboard extends StatelessWidget {
   const CateringDashboard({super.key});
@@ -7,9 +12,8 @@ class CateringDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData.light().copyWith(
-        primaryColor: const Color(0xFF00BFA5), // Neutral Teal color
-        scaffoldBackgroundColor:
-            const Color(0xFFF9F9F9), // Light gray background
+        primaryColor: const Color(0xFF00BFA5),
+        scaffoldBackgroundColor: const Color(0xFFF9F9F9),
         textTheme: const TextTheme(
           bodyMedium: TextStyle(color: Colors.black87),
           bodySmall: TextStyle(color: Colors.black54),
@@ -20,8 +24,188 @@ class CateringDashboard extends StatelessWidget {
   }
 }
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  _DashboardPageState createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  final String baseUrl =
+      'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
+  List<Map<String, dynamic>> _bookings = [];
+  List<Map<String, dynamic>> _orders = [];
+  bool _isLoadingBookings = true;
+  bool _isLoadingOrders = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Hive.initFlutter();
+    _fetchDashboardData();
+  }
+
+  Future<String?> _getToken() async {
+    var box = await Hive.openBox('authBox');
+    return box.get('token');
+  }
+
+  Future<void> _fetchDashboardData() async {
+    await _fetchBookings();
+    await _fetchOrders();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    String? token = await _getToken();
+    if (token == null) {
+      _showMessage('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        var box = await Hive.openBox('userBox');
+        await box.put('userName', data['name']);
+        await box.put('userId', data['id']);
+        _showMessage('User profile loaded successfully!');
+      } else {
+        _showMessage('Failed to load user profile: ${response.body}');
+      }
+    } catch (e) {
+      _showMessage('Error loading user profile: $e');
+    }
+  }
+
+  Future<void> _fetchBookings() async {
+    String? token = await _getToken();
+    if (token == null) {
+      _showMessage('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/bookings/all'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      print(response.body);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _bookings = List<Map<String, dynamic>>.from(data['bookings'][0]);
+          _isLoadingBookings = false;
+        });
+      } else {
+        _showMessage('Failed to fetch bookings: ${response.body}');
+      }
+    } catch (e) {
+      _showMessage('Error fetching bookings: $e');
+    }
+  }
+
+  Future<void> _fetchOrders() async {
+    String? token = await _getToken();
+    if (token == null) {
+      _showMessage('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _orders = List<Map<String, dynamic>>.from(data['orders']);
+          _isLoadingOrders = false;
+        });
+      } else {
+        _showMessage('Failed to fetch orders: ${response.body}');
+      }
+    } catch (e) {
+      _showMessage('Error fetching orders: $e');
+    }
+  }
+
+  Future<void> _updateBookingStatus(String bookingId, String newStatus) async {
+    String? token = await _getToken();
+    if (token == null) {
+      _showMessage('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/bookings/$bookingId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'status': newStatus}),
+      );
+
+      if (response.statusCode == 200) {
+        _showMessage('Booking status updated successfully!');
+        await _fetchBookings(); // Refresh bookings data
+      } else {
+        _showMessage('Failed to update booking status: ${response.body}');
+      }
+    } catch (e) {
+      _showMessage('Error updating booking status: $e');
+    }
+  }
+
+  Future<void> _updateOrderStatus(String orderId, String newStatus) async {
+    String? token = await _getToken();
+    if (token == null) {
+      _showMessage('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/bookings/$orderId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'status': newStatus}),
+      );
+
+      if (response.statusCode == 200) {
+        _showMessage('Booking status updated successfully!');
+        await _fetchOrders(); // Refresh orders data
+      } else {
+        _showMessage('Failed to update order status: ${response.body}');
+      }
+    } catch (e) {
+      _showMessage('Error updating order status: $e');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,15 +222,11 @@ class DashboardPage extends StatelessWidget {
               children: [
                 IconButton(
                   icon: const Icon(Icons.notifications, color: Colors.white),
-                  onPressed: () {
-                    // Notification actions
-                  },
+                  onPressed: () {},
                 ),
                 IconButton(
                   icon: const Icon(Icons.account_circle, color: Colors.white),
-                  onPressed: () {
-                    // Profile actions
-                  },
+                  onPressed: () {},
                 ),
               ],
             ),
@@ -59,69 +239,61 @@ class DashboardPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Quick Actions Section
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Quick Actions',
-                            style:
-                                TextStyle(fontSize: 18, color: Colors.black)),
-                        TextButton(
-                            onPressed: () {}, child: const Text('View More'))
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    GridView.count(
-                      shrinkWrap: true,
-                      crossAxisCount: 3,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 20,
-                      children: [
-                        _quickActionButton(context, Icons.receipt_long,
-                            'View Orders', const Color(0xFFB39DDB)),
-                        _quickActionButton(context, Icons.calendar_today,
-                            'View Bookings', const Color(0xFF00D7A3)),
-                        _quickActionButton(context, Icons.assignment_ind,
-                            'Assign Tasks', const Color(0xFFFF8A80)),
-                        _quickActionButton(context, Icons.check_circle,
-                            'Confirm Tasks', const Color(0xFF81C784)),
-                        _quickActionButton(context, Icons.update,
-                            'Provide Updates', const Color(0xFF4FC3F7)),
-                        _quickActionButton(context, Icons.chat_bubble,
-                            'Communicate', const Color(0xFFFFB74D)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
+              _buildQuickActionsSection(context),
               const SizedBox(height: 20),
-
-              // Upcoming Bookings Card
-              _sectionWithViewMore('Upcoming Bookings', _bookingsCard()),
-
+              _sectionWithViewMore('Upcoming Bookings', _buildBookingsCard()),
               const SizedBox(height: 20),
-
-              // Pending Orders Card
-              _sectionWithViewMore('Pending Orders', _pendingOrdersCard()),
-
+              _sectionWithViewMore('Pending Orders', _buildPendingOrdersCard()),
               const SizedBox(height: 20),
-
-              // Recent Notifications Card
               _sectionWithViewMore(
-                  'Recent Notifications', _notificationsCard()),
+                  'Recent Notifications', _buildNotificationsCard()),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Quick Actions',
+                  style: TextStyle(fontSize: 18, color: Colors.black)),
+              TextButton(onPressed: () {}, child: const Text('View More'))
+            ],
+          ),
+          const SizedBox(height: 10),
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 20,
+            children: [
+              _quickActionButton(context, Icons.receipt_long, 'View Orders',
+                  const Color(0xFFB39DDB)),
+              _quickActionButton(context, Icons.calendar_today, 'View Bookings',
+                  const Color(0xFF00D7A3)),
+              _quickActionButton(context, Icons.assignment_ind, 'Assign Tasks',
+                  const Color(0xFFFF8A80)),
+              _quickActionButton(context, Icons.check_circle, 'Confirm Tasks',
+                  const Color(0xFF81C784)),
+              _quickActionButton(context, Icons.update, 'Provide Updates',
+                  const Color(0xFF4FC3F7)),
+              _quickActionButton(context, Icons.chat_bubble, 'Communicate',
+                  const Color(0xFFFFB74D)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -147,8 +319,35 @@ class DashboardPage extends StatelessWidget {
     return Column(
       children: [
         GestureDetector(
-          onTap: () {
-            // Define actions when buttons are clicked
+          onTap: () async {
+            switch (label) {
+              // case 'View Orders':
+              //   Navigator.push(context,
+              //       MaterialPageRoute(builder: (context) => OrdersPage()));
+              //   break;
+              case 'View Bookings':
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const ManagerBookingsPage()));
+                break;
+              // case 'Assign Tasks':
+              //   Navigator.push(context,
+              //       MaterialPageRoute(builder: (context) => AssignTasksPage()));
+              //   break;
+              // case 'Confirm Tasks':
+              //   Navigator.push(
+              //       context,
+              //       MaterialPageRoute(
+              //           builder: (context) => ConfirmTasksPage()));
+              //   break;
+              // case 'Provide Updates':
+              //   Navigator.push(
+              //       context,
+              //       MaterialPageRoute(
+              //           builder: (context) => ProvideUpdatesPage()));
+              //   break;
+                          }
           },
           child: Container(
               decoration: BoxDecoration(
@@ -166,37 +365,56 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _bookingsCard() {
+  Widget _buildBookingsCard() {
+    if (_isLoadingBookings) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_bookings.isEmpty) {
+      return const Center(child: Text('No bookings available.'));
+    }
     return _infoCard(
-      [
-        _bookingRow('Wedding Reception', 'June 15, 2023', '150 guests',
-            'Confirmed', const Color(0xFF81C784)),
-        _bookingRow('Corporate Luncheon', 'June 18, 2023', '75 guests',
-            'Confirmed', const Color(0xFF81C784)),
-        _bookingRow('Birthday Party', 'June 20, 2023', '50 guests', 'Pending',
-            const Color(0xFFFFB74D)),
-        _bookingRow('Charity Gala', 'June 25, 2023', '200 guests', 'Confirmed',
-            const Color(0xFF81C784)),
-        _bookingRow('Product Launch', 'June 30, 2023', '100 guests', 'Pending',
-            const Color(0xFFFFB74D)),
-      ],
+      _bookings.map((booking) {
+        return GestureDetector(
+          child: _bookingRow(
+            booking['event_name'],
+            booking['event_date'],
+            '${booking['guest_count']} guests',
+            booking['status'],
+            booking['status'] == 'Confirmed'
+                ? const Color(0xFF81C784)
+                : const Color(0xFFFFB74D),
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _pendingOrdersCard() {
+  Widget _buildPendingOrdersCard() {
+    if (_isLoadingOrders) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_orders.isEmpty) {
+      return const Center(child: Text('No orders available.'));
+    }
     return _infoCard(
-      [
-        _orderRow('#1234', 'Wedding Reception', 'June 15, 2023', 'In Progress',
-            const Color(0xFF81C784)),
-        _orderRow('#1235', 'Corporate Luncheon', 'June 18, 2023', 'Pending',
-            const Color(0xFFFFB74D)),
-        _orderRow('#1236', 'Birthday Party', 'June 20, 2023', 'Pending',
-            const Color(0xFFFFB74D)),
-      ],
+      _orders.map((order) {
+        return GestureDetector(
+          onTap: () => _updateOrderStatus(order['id'], 'Completed'),
+          child: _orderRow(
+            order['order_number'],
+            order['event_name'],
+            order['event_date'],
+            order['status'],
+            order['status'] == 'In Progress'
+                ? const Color(0xFF81C784)
+                : const Color(0xFFFFB74D),
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _notificationsCard() {
+  Widget _buildNotificationsCard() {
     return _infoCard(
       [
         _notificationRow('New Booking: Corporate Luncheon', '10 minutes ago'),
@@ -219,6 +437,7 @@ class DashboardPage extends StatelessWidget {
       ),
     );
   }
+
   Widget _bookingRow(String event, String date, String guests, String status,
       Color statusColor) {
     return Padding(
@@ -242,6 +461,7 @@ class DashboardPage extends StatelessWidget {
       ),
     );
   }
+
   Widget _orderRow(String orderId, String event, String date, String status,
       Color statusColor) {
     return Padding(

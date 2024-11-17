@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_credit_card/flutter_credit_card.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Icon library
 
-void main() {
-  runApp(const PaymentApp());
-}
-
 class PaymentApp extends StatelessWidget {
   const PaymentApp({super.key});
 
@@ -20,19 +16,22 @@ class PaymentApp extends StatelessWidget {
           bodySmall: TextStyle(color: Colors.black54),
         ),
       ),
-      home: const PaymentPage(),
+      home: const PaymentPage(booking: {'id': 1, 'amount': 100.0}),
     );
   }
 }
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key});
+  final Map<String, dynamic> booking;
+
+  const PaymentPage({super.key, required this.booking});
 
   @override
   _PaymentPageState createState() => _PaymentPageState();
 }
 
 class _PaymentPageState extends State<PaymentPage> {
+  late Map<String, dynamic> booking;
   String cardNumber = '';
   String expiryDate = '';
   String cardHolderName = '';
@@ -40,6 +39,12 @@ class _PaymentPageState extends State<PaymentPage> {
   bool isCvvFocused = false;
   String selectedPaymentMethod = 'MPesa'; // Default payment method
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    booking = widget.booking;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,60 +121,27 @@ class _PaymentPageState extends State<PaymentPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
-        ListTile(
-          leading:
-              const Icon(FontAwesomeIcons.mobileAlt, color: Color(0xFF00BFA5)),
-          title: const Text('MPesa'),
-          trailing: Radio<String>(
-            value: 'MPesa',
-            groupValue: selectedPaymentMethod,
-            onChanged: (value) {
-              setState(() {
-                selectedPaymentMethod = value!;
-              });
-            },
-          ),
-        ),
-        ListTile(
-          leading: const Icon(FontAwesomeIcons.creditCard, color: Colors.blue),
-          title: const Text('Credit Card'),
-          trailing: Radio<String>(
-            value: 'Credit Card',
-            groupValue: selectedPaymentMethod,
-            onChanged: (value) {
-              setState(() {
-                selectedPaymentMethod = value!;
-              });
-            },
-          ),
-        ),
-        ListTile(
-          leading: const Icon(FontAwesomeIcons.paypal, color: Colors.blue),
-          title: const Text('PayPal'),
-          trailing: Radio<String>(
-            value: 'PayPal',
-            groupValue: selectedPaymentMethod,
-            onChanged: (value) {
-              setState(() {
-                selectedPaymentMethod = value!;
-              });
-            },
-          ),
-        ),
-        ListTile(
-          leading: const Icon(FontAwesomeIcons.university, color: Colors.green),
-          title: const Text('Bank Transfer'),
-          trailing: Radio<String>(
-            value: 'Bank Transfer',
-            groupValue: selectedPaymentMethod,
-            onChanged: (value) {
-              setState(() {
-                selectedPaymentMethod = value!;
-              });
-            },
-          ),
-        ),
+        _buildPaymentOption('MPesa', FontAwesomeIcons.mobileAlt),
+        _buildPaymentOption('Credit Card', FontAwesomeIcons.creditCard),
+        _buildPaymentOption('PayPal', FontAwesomeIcons.paypal),
+        _buildPaymentOption('Bank Transfer', FontAwesomeIcons.university),
       ],
+    );
+  }
+
+  Widget _buildPaymentOption(String method, IconData icon) {
+    return ListTile(
+      leading: Icon(icon, color: const Color(0xFF00BFA5)),
+      title: Text(method),
+      trailing: Radio<String>(
+        value: method,
+        groupValue: selectedPaymentMethod,
+        onChanged: (value) {
+          setState(() {
+            selectedPaymentMethod = value!;
+          });
+        },
+      ),
     );
   }
 
@@ -221,8 +193,10 @@ class _PaymentPageState extends State<PaymentPage> {
   void _processPayment() {
     if (selectedPaymentMethod == 'Credit Card' &&
         formKey.currentState?.validate() == true) {
+      // Simulate a payment processing
       _showPaymentResult(success: true);
     } else if (selectedPaymentMethod != 'Credit Card') {
+      // Simulate a payment processing for other methods
       _showPaymentResult(success: true);
     } else {
       _showPaymentResult(success: false);

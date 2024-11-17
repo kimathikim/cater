@@ -7,31 +7,52 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class CommunicationApp extends StatelessWidget {
   final String userName;
-  final String id;
+  final String id; // Current user's ID
+  final String receiverName;
+  final String receiverId;
 
-  const CommunicationApp({super.key, required this.userName, required this.id});
+  const CommunicationApp({
+    super.key,
+    required this.userName,
+    required this.id,
+    required this.receiverName,
+    required this.receiverId,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(userName, style: const TextStyle(color: Colors.white)),
+        title: Text(receiverName, style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF00BFA5),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: ChatPage(userName: userName, id: id),
+      body: ChatPage(
+        userName: userName,
+        id: id,
+        receiverName: receiverName,
+        receiverId: receiverId,
+      ),
     );
   }
 }
 
 class ChatPage extends StatefulWidget {
   final String userName;
-  final String id;
+  final String id; // Current user's ID
+  final String receiverName;
+  final String receiverId;
 
-  const ChatPage({super.key, required this.userName, required this.id});
+  const ChatPage({
+    super.key,
+    required this.userName,
+    required this.id,
+    required this.receiverName,
+    required this.receiverId,
+  });
 
   @override
   _ChatPageState createState() => _ChatPageState();
@@ -40,49 +61,60 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final List<types.Message> _messages = [];
   late final types.User _user;
-  late io.Socket socket;
-  late String room;
+  late final io.Socket socket;
+  late final String room;
 
   @override
   void initState() {
     super.initState();
     _user = types.User(id: widget.id, firstName: widget.userName);
+    room = _generateRoom(widget.id, widget.receiverId);
     _connectToWebSocket();
+  }
+
+  String _generateRoom(String senderId, String receiverId) {
+    final ids = [senderId, receiverId]..sort();
+    return 'private_${ids[0]}_${ids[1]}';
   }
 
   void _connectToWebSocket() async {
     var box = await Hive.openBox('authBox');
     String? token = box.get('token');
+
     if (token == null) {
       _showErrorDialog('User not authenticated. Please log in again.');
       return;
     }
 
-    socket = io
-        .io('https://catermanage-388b2a1ca8bc.herokuapp.com', <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'query': {'token': token}
-    });
+    socket = io.io(
+      'https://catermanage-388b2a1ca8bc.herokuapp.com',
+      <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+        'query': {'token': token},
+      },
+    );
 
     socket.connect();
 
     socket.onConnect((_) {
-
-      socket.emit('join_private_room',
-          {'token': 'your_jwt_token_here', 'receiver_id': _user.id});
-      print('Connected and joined room $room');
+      print('Connected to WebSocket');
+      socket.emit('join_private_room', {'room': room});
+      print('Joined room: $room');
     });
 
-    socket.on(
-        'receive_private_message', (data) => _handleReceivedMessage(data));
-
-    socket.onDisconnect((_) => print('Disconnected'));
+    socket.on('receive_private_message', (data) => _handleReceivedMessage(data));
+    socket.onDisconnect((_) => print('Disconnected from WebSocket'));
+    socket.onConnectError((err) => print('Connection Error: $err'));
+    socket.onError((err) => print('WebSocket Error: $err'));
   }
 
-  void _handleReceivedMessage(data) {
+  void _handleReceivedMessage(dynamic data) {
     final message = types.TextMessage(
-      author: types.User(id: data['authorId'], firstName: data['authorName']),
+      author: types.User(
+        id: data['authorId'],
+        firstName: data['authorName'],
+      ),
       id: const Uuid().v4(),
       text: data['text'],
       createdAt: DateTime.now().millisecondsSinceEpoch,
@@ -91,17 +123,6 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _messages.insert(0, message);
     });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Chat(
-      messages: _messages,
-      onSendPressed: _handleSendMessage,
-      user: _user,
-      showUserAvatars: true,
-      showUserNames: true,
-    );
   }
 
   void _handleSendMessage(types.PartialText message) {
@@ -114,8 +135,8 @@ class _ChatPageState extends State<ChatPage> {
 
     socket.emit('send_private_message', {
       'text': message.text,
-      'token': 'your_jwt_token_here',
-      'receiver_id': _user.id,
+      'receiver_id': widget.receiverId,
+      'room': room,
     });
 
     setState(() {
@@ -130,21 +151,31 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Chat(
+      messages: _messages,
+      onSendPressed: _handleSendMessage,
+      user: _user,
+      showUserAvatars: true,
+      showUserNames: true,
+    );
+  }
+
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Error'),
         content: Text(message),
-        actions: <Widget>[
+        actions: [
           TextButton(
             child: const Text('Okay'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          )
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
         ],
       ),
     );
   }
 }
+

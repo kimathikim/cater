@@ -31,7 +31,7 @@ class _ContactListPageState extends State<ContactListPage> {
     if (!Hive.isAdapterRegistered(ContactAdapter().typeId)) {
       Hive.registerAdapter(ContactAdapter());
     }
-    
+
     contactBox = await Hive.openBox<Contact>('contacts');
     _loadContactsFromHive();
     _fetchContactsFromApi();
@@ -88,15 +88,7 @@ class _ContactListPageState extends State<ContactListPage> {
                   child: Text(contact.name[0]),
                 ),
                 title: Text(contact.name),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          CommunicationApp(id: contact.id,  userName: contact.name),
-                    ),
-                  );
-                },
+                onTap: () {},
               );
             },
           );
@@ -111,4 +103,3 @@ class _ContactListPageState extends State<ContactListPage> {
     super.dispose();
   }
 }
-
