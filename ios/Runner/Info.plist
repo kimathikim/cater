@@ -45,5 +45,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+	  <key>NSAllowsArbitraryLoads</key>
+	  <true/>
+	</dict>
+	<key>NSExceptionDomains</key>
+	<dict>
+	  <key>com.apple.mail</key>
+	  <dict>
+	    <key>NSIncludesSubdomains</key>
+	    <true/>
+	  </dict>
+	</dict>
 </dict>
 </plist>

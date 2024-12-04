@@ -47,7 +47,7 @@ class _LoginPageState extends State<LoginPage>
   bool _isLoading = false;
 
   final String baseUrl =
-      'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
+      'https://web-production-3e0c9.up.railway.app/api/v1';
 
   @override
   void initState() {

@@ -4,7 +4,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Icon library
 
 class PaymentApp extends StatelessWidget {
   const PaymentApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,22 +15,18 @@ class PaymentApp extends StatelessWidget {
           bodySmall: TextStyle(color: Colors.black54),
         ),
       ),
-      home: const PaymentPage(booking: {'id': 1, 'amount': 100.0}),
+      home: const PaymentPage(),
     );
   }
 }
 
 class PaymentPage extends StatefulWidget {
-  final Map<String, dynamic> booking;
-
-  const PaymentPage({super.key, required this.booking});
-
+  const PaymentPage({super.key});
   @override
   _PaymentPageState createState() => _PaymentPageState();
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  late Map<String, dynamic> booking;
   String cardNumber = '';
   String expiryDate = '';
   String cardHolderName = '';
@@ -39,13 +34,6 @@ class _PaymentPageState extends State<PaymentPage> {
   bool isCvvFocused = false;
   String selectedPaymentMethod = 'MPesa'; // Default payment method
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-
-  @override
-  void initState() {
-    super.initState();
-    booking = widget.booking;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +51,7 @@ class _PaymentPageState extends State<PaymentPage> {
             const SizedBox(height: 20),
             _buildPaymentOptions(),
             const SizedBox(height: 20),
-            if (selectedPaymentMethod == 'Credit Card') _buildCreditCardForm(),
+            //if (selectedPaymentMethod == 'Credit Card')
             const SizedBox(height: 20),
             Center(
               child: ElevatedButton.icon(
@@ -145,41 +133,40 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
-  Widget _buildCreditCardForm() {
-    return CreditCardForm(
-      cardNumber: cardNumber,
-      expiryDate: expiryDate,
-      cardHolderName: cardHolderName,
-      cvvCode: cvvCode,
-      onCreditCardModelChange: _onCreditCardModelChange,
-      themeColor: const Color(0xFF00BFA5),
-      formKey: formKey,
-      cardNumberDecoration: const InputDecoration(
-        labelText: 'Card Number',
-        hintText: 'XXXX XXXX XXXX XXXX',
-        prefixIcon: Icon(Icons.credit_card),
-        border: OutlineInputBorder(),
-      ),
-      expiryDateDecoration: const InputDecoration(
-        labelText: 'Expiry Date',
-        hintText: 'MM/YY',
-        prefixIcon: Icon(Icons.date_range),
-        border: OutlineInputBorder(),
-      ),
-      cvvCodeDecoration: const InputDecoration(
-        labelText: 'CVV',
-        hintText: 'XXX',
-        prefixIcon: Icon(Icons.lock),
-        border: OutlineInputBorder(),
-      ),
-      cardHolderDecoration: const InputDecoration(
-        labelText: 'Card Holder',
-        prefixIcon: Icon(Icons.person),
-        border: OutlineInputBorder(),
-      ),
-    );
-  }
-
+  // Widget _buildCreditCardForm() {
+  //   return CreditCardForm(
+  //     cardNumber: cardNumber,
+  //     expiryDate: expiryDate,
+  //     cardHolderName: cardHolderName,
+  //     cvvCode: cvvCode,
+  //     onCreditCardModelChange: _onCreditCardModelChange,
+  //     themeColor: const Color(0xFF00BFA5),
+  //     formKey: formKey,
+  //     cardNumberDecoration: const InputDecoration(
+  //       labelText: 'Card Number',
+  //       hintText: 'XXXX XXXX XXXX XXXX',
+  //       prefixIcon: Icon(Icons.credit_card),
+  //       border: OutlineInputBorder(),
+  //     ),
+  //     expiryDateDecoration: const InputDecoration(
+  //       labelText: 'Expiry Date',
+  //       hintText: 'MM/YY',
+  //       prefixIcon: Icon(Icons.date_range),
+  //       border: OutlineInputBorder(),
+  //     ),
+  //     cvvCodeDecoration: const InputDecoration(
+  //       labelText: 'CVV',
+  //       hintText: 'XXX',
+  //       prefixIcon: Icon(Icons.lock),
+  //       border: OutlineInputBorder(),
+  //     ),
+  //     cardHolderDecoration: const InputDecoration(
+  //       labelText: 'Card Holder',
+  //       prefixIcon: Icon(Icons.person),
+  //       border: OutlineInputBorder(),
+  //     ),
+  //   );
+  // }
   void _onCreditCardModelChange(CreditCardModel? model) {
     setState(() {
       cardNumber = model?.cardNumber ?? '';

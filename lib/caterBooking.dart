@@ -30,7 +30,7 @@ class OrdersAndBookingsPage extends StatefulWidget {
 }
 
 class _OrdersAndBookingsPageState extends State<OrdersAndBookingsPage> {
-  final String baseUrl = 'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
+  final String baseUrl = 'https://web-production-3e0c9.up.railway.app/api/v1';
   bool _isLoading = true;
   List<Map<String, String>> _orders = [];
   List<Map<String, dynamic>> _bookings = [];

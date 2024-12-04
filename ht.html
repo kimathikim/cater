@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Chat App with Canvas</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 600px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background-color: #007bff;
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+        .user-setup {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #f9fafc;
+        }
+        .user-setup input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .user-setup button {
+            padding: 10px;
+            background-color: #007bff;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .user-setup button:hover {
+            background-color: #0056b3;
+        }
+        .chat-room {
+            display: none;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        canvas {
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            background-color: #f4f7fa;
+        }
+        .input-container {
+            padding: 10px;
+            background-color: #ffffff;
+            display: flex;
+            gap: 10px;
+        }
+        .input-container input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .input-container button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .input-container button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="header">
+            Modern Chat App
+        </div>
+
+        <!-- User Setup Section -->
+        <div class="user-setup">
+            <input type="text" id="userIdInput" placeholder="Enter your User ID">
+            <input type="text" id="receiverIdInput" placeholder="Enter Receiver's User ID">
+            <button id="joinButton">Join Chat</button>
+        </div>
+
+        <!-- Chat Room Section -->
+        <div class="chat-room">
+            <canvas id="chatCanvas"></canvas>
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type a message...">
+                <button id="sendButton">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       const socket = io("http://127.0.0.1:8000/socket.io/"); // Adjusted for WebSocket server
+
+        const userIdInput = document.getElementById("userIdInput");
+        const receiverIdInput = document.getElementById("receiverIdInput");
+        const joinButton = document.getElementById("joinButton");
+        const messageInput = document.getElementById("messageInput");
+        const sendButton = document.getElementById("sendButton");
+        const userSetupDiv = document.querySelector(".user-setup");
+        const chatRoomDiv = document.querySelector(".chat-room");
+        const chatCanvas = document.getElementById("chatCanvas");
+
+        let userId, receiverId;
+        let messages = [];
+        const ctx = chatCanvas.getContext("2d");
+
+        // Adjust canvas size
+        function resizeCanvas() {
+            chatCanvas.width = chatCanvas.clientWidth;
+            chatCanvas.height = chatCanvas.clientHeight;
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        // Render messages on canvas
+        function renderMessages() {
+            ctx.clearRect(0, 0, chatCanvas.width, chatCanvas.height);
+            ctx.font = "14px Arial";
+            ctx.textBaseline = "top";
+
+            let y = 10; // Initial y-coordinate for text
+            messages.forEach((message) => {
+                ctx.fillStyle = message.sender_id === userId ? "#007bff" : "#555";
+                const text = `${message.sender_id === userId ? "You" : "User " + message.sender_id}: ${message.content}`;
+                ctx.fillText(text, 10, y);
+                y += 20; // Move down for the next message
+            });
+        }
+
+      joinButton.addEventListener("click", () => {
+    userId = userIdInput.value.trim();
+    receiverId = receiverIdInput.value.trim();
+
+    if (!userId || !receiverId) {
+        alert("Please enter both your User ID and the Receiver's User ID.");
+        return;
+    }
+
+    // Emit join room request
+    socket.emit("join_private_room", { sender_id: userId, receiver_id: receiverId });
+
+    // Listen for room_joined event
+    socket.on("room_joined", (data) => {
+        if (data.status === "success") {
+            userSetupDiv.style.display = "none";
+            chatRoomDiv.style.display = "flex";
+            console.log(`Successfully joined room: ${data.room}`);
+        } else {
+            alert(`Error: ${data.message}`);
+            console.error("Failed to join room:", data);
+        }
+    });
+});
+        // Send a private message
+        sendButton.addEventListener("click", () => {
+            const messageText = messageInput.value.trim();
+
+            if (messageText) {
+                const message = {
+                    sender_id: userId,
+                    receiver_id: receiverId,
+                    content: messageText,
+                };
+
+                socket.emit("send_private_message", message);
+                messageInput.value = ""; // Clear input
+            }
+        });
+
+        // Receive private messages
+        socket.on("receive_private_message", (message) => {
+            messages.push(message);
+            renderMessages();
+        });
+
+        // Handle connection and disconnection
+        socket.on("connect", () => {
+            console.log("Connected to WebSocket server");
+        });
+
+        socket.on("disconnect", () => {
+            console.log("Disconnected from WebSocket server");
+        });
+    </script>
+</body>
+</html>
+

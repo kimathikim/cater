@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'clientBooking.dart';
 import 'feedback.dart';
 import 'payment.dart';
+import 'client_b_details.dart';
 
 class ClientDashboard extends StatelessWidget {
   const ClientDashboard({super.key});
@@ -18,7 +19,7 @@ class ClientDashboard extends StatelessWidget {
       ),
       home: const ClientDashboardPage(),
     );
-  }
+   }
 }
 
 class ClientDashboardPage extends StatefulWidget {
@@ -30,8 +31,7 @@ class ClientDashboardPage extends StatefulWidget {
 
 class _ClientDashboardPageState extends State<ClientDashboardPage> {
   final String baseUrl =
-      'https://catermanage-388b2a1ca8bc.herokuapp.com/api/v1';
-  final bool _isLoading = true;
+      'https://web-production-3e0c9.up.railway.app/api/v1';
   final List<Map<String, dynamic>> _bookings = [];
   final List<Map<String, dynamic>> _notifications = [];
   int _bookingPage = 1;
@@ -44,47 +44,12 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     _fetchDashboardData();
   }
 
-  void _showStatusDialog(Map<String, dynamic> booking, double cost) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Booking Status'),
-        content: Text(
-            'The final cost for this booking is: \$${cost.toStringAsFixed(2)}. Do you want to make a payment for this booking?'),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('No'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          ),
-          TextButton(
-            child: const Text('Yes'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _redirectToPaymentPage(booking);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _redirectToPaymentPage(Map<String, dynamic> booking) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PaymentPage(booking: booking)
-      ),
-    );
-  }
-
   Future<void> _fetchDashboardData() async {
     await _fetchBookings();
     await _fetchNotifications();
   }
 
   Future<void> _fetchBookings() async {
-    // Add progressive loading for bookings
     try {
       var box = await Hive.openBox('authBox');
       String? token = box.get('token');
@@ -104,21 +69,19 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         Uri.parse('$baseUrl/bookings?page=$_bookingPage'),
         headers: headers,
       );
-      print(bookingsResponse.body);
 
       if (bookingsResponse.statusCode == 200) {
         final bookingsData = json.decode(bookingsResponse.body);
 
         if (mounted) {
           setState(() {
-            _bookings.clear(); // Clear the existing bookings data
+            _bookings.clear();
             _bookings.addAll(
                 List<Map<String, dynamic>>.from(bookingsData['bookings'][0]));
             _bookingPage++;
           });
         }
       }
-      print(_bookings);
     } catch (e) {
       if (mounted) {
         _showErrorDialog('Error fetching bookings: $e');
@@ -152,17 +115,9 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
 
         if (mounted) {
           setState(() {
-            _notifications.clear(); // Clear the existing notifications data
-
-            if (notificationsData['notifications'] != null &&
-                notificationsData['notifications'] is List) {
-              _notifications.addAll(List<Map<String, dynamic>>.from(
-                  notificationsData['notifications']));
-            } else {
-              _showErrorDialog(
-                  'No notifications found or invalid response format.');
-            }
-
+            _notifications.clear();
+            _notifications.addAll(List<Map<String, dynamic>>.from(
+                notificationsData['notifications']));
             _notificationPage++;
           });
         }
@@ -198,8 +153,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF00BFA5),
         elevation: 0,
-        title: const Text('Welcome, Client',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Welcome, Client', style: TextStyle(color: Colors.white)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -260,30 +214,78 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       children: [
         const Text('Upcoming Bookings', style: TextStyle(fontSize: 18)),
         const SizedBox(height: 10),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _bookings.length + 1,
-          itemBuilder: (context, index) {
-            if (index < _bookings.length) {
-              return _bookingRow(
-                _bookings[index]['event_name'],
-                _bookings[index]['event_date'],
-                _bookings[index]['guest_count'].toString(),
-                _bookings[index]['status'],
-                () {
-                  if (_bookings[index]['status'] == 'Confirmed') {
-                    _showStatusDialog(
-                        _bookings[index]['id'], _bookings[index]['total_cost']);
-                  }
+        _bookings.isEmpty
+            ? const Text('No upcoming bookings.')
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _bookings.length,
+                itemBuilder: (context, index) {
+                  return _bookingRow(_bookings[index]);
                 },
-              );
-            } else {
-              return _buildProgressiveLoader(_fetchBookings);
-            }
-          },
-        ),
+              ),
+        if (_bookings.length >= 10) // Adjust as per pagination
+          _buildProgressiveLoader(_fetchBookings),
       ],
+    );
+  }
+
+  Widget _bookingRow(Map<String, dynamic> booking) {
+    return GestureDetector(
+      onTap: () {
+        if (booking['status'] == 'Confirmed') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BookingDetailPage(booking: booking),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Booking is not confirmed.')),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(booking['event_name'],
+                    style: const TextStyle(color: Colors.black)),
+                Text(
+                    '${booking['event_date']} • ${booking['guest_count']} guests',
+                    style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: booking['status'] == 'Confirmed'
+                    ? Colors.green.withOpacity(0.2)
+                    : booking['status'] == 'Completed'
+                        ? Colors.blue.withOpacity(0.2)
+                        : Colors.orange.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                booking['status'],
+                style: TextStyle(
+                  color: booking['status'] == 'Confirmed'
+                      ? Colors.green
+                      : booking['status'] == 'Completed'
+                          ? Colors.blue
+                          : Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -298,23 +300,18 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _notifications.length + 1,
+                itemCount: _notifications.length,
                 itemBuilder: (context, index) {
-                  if (index < _notifications.length) {
-                    return _notificationRow(
+                  return _notificationRow(
                       _notifications[index]['message'],
-                      _notifications[index]['time'],
-                    );
-                  } else {
-                    return _buildProgressiveLoader(_fetchNotifications);
-                  }
+                      _notifications[index]['time']);
                 },
               ),
       ],
     );
   }
 
-  Widget _buildProgressiveLoader(Future<void> Function() fetchMore) {
+   Widget _buildProgressiveLoader(Future<void> Function() fetchMore) {
     return Center(
       child: OutlinedButton(
         onPressed: () {
@@ -324,6 +321,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       ),
     );
   }
+
 
   Widget _quickActionButton(
       BuildContext context, IconData icon, String label, Color color) {
@@ -359,43 +357,8 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     );
   }
 
-  Widget _bookingRow(String event, String date, String guests, String status,
-      VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(event, style: const TextStyle(color: Colors.black)),
-              Text('$date • $guests',
-                  style: TextStyle(color: Colors.grey[600])),
-            ]),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: status == 'Confirmed'
-                    ? Colors.green.withOpacity(0.2)
-                    : Colors.orange.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  color: status == 'Confirmed' ? Colors.green : Colors.orange,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _notificationRow(String message, String time) {
+Widget _notificationRow(String message, String time) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: ListTile(
